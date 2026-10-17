@@ -89,7 +89,7 @@ function washLut(room) {
   return lut;
 }
 
-function SlideCanvas({src, width, room, washout, filter, highlight, pins, onPin, heads, captions, pip}) {
+function SlideCanvas({src, width, room, washout, filter, highlight, pins, onPin, heads, captions, pip, led}) {
   const canvas = useRef(null);
   const H = width * 9 / 16;
   useEffect(() => {
@@ -111,6 +111,7 @@ function SlideCanvas({src, width, room, washout, filter, highlight, pins, onPin,
   const dz = heads && room ? room.dead_zone : 0;
   return html`<div className="slide" style=${{width, height:H}}>
     <canvas ref=${canvas} style=${{width:'100%', height:'100%', display:'block', filter}}></canvas>
+    ${led && html`<div className="ledgrid" aria-hidden="true"></div>`}
     ${(highlight || []).map((b, i) => html`<div key=${i} className="hlbox" style=${{left:b.left * width - 4, top:b.top * H - 4, width:(b.right - b.left) * width + 8, height:(b.bottom - b.top) * H + 8}}></div>`)}
     ${dz > 0 && html`<${Heads} dz=${dz} width=${width} height=${H}/>`}
     ${captions && html`<div className="captions" style=${{fontSize:Math.max(9, width / 44)}}>Live captions appear here</div>`}
@@ -260,10 +261,14 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
   const VIEWS = venue.where === 'online' ? ['laptop', 'stream'] : venue.where === 'both' ? ['laptop', 'room', 'back', 'stream'] : ['laptop', 'room', 'back'];
   const [older, setOlder] = useState(false);
   const [cvd, setCvd] = useState(false);
+  // LED walls: brighter, punchier, dark grays sink to black, bright text glows. On by default for the stage room.
+  const [led, setLed] = useState(venue.where !== 'online' && venue.room === 'huge');
+  useEffect(() => { setLed(venue.where !== 'online' && venue.room === 'huge'); }, [venue.where, venue.room]);
   const m = MODES[VIEWS.includes(mode) ? mode : VIEWS[1]];
   // Older eyes and color blindness layer on top of whichever view is chosen.
-  const lens = [m.filter, older && 'url(#f-old) blur(.5px)', cvd && 'url(#f-deut)'].filter(Boolean).join(' ') || undefined;
-  const lensCap = [older && 'Older eyes: less blue, less contrast, softer focus.', cvd && 'Color blind: the most common kind.'].filter(Boolean).join(' ');
+  const ledOn = led && venue.where !== 'online';
+  const lens = [ledOn && 'url(#f-led)', m.filter, older && 'url(#f-old) blur(.5px)', cvd && 'url(#f-deut)'].filter(Boolean).join(' ') || undefined;
+  const lensCap = [ledOn && 'LED wall: brighter and punchier, dark grays sink to black, bright text glows.', older && 'Older eyes: less blue, less contrast, softer focus.', cvd && 'Color blind: the most common kind.'].filter(Boolean).join(' ');
   const narrow = stageW < 560;
   const inner = Math.max(160, narrow ? stageW : stageW - 48);
   const faceW = Math.round(Math.min(110, Math.max(36, inner * 0.14)));
@@ -286,11 +291,16 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
     <header className="rhead">
       <div className="rtitle">
         <h1>${headline}</h1>
-        <p className="context">${rep.deck}. ${rep.venue_text}.<a role="button" tabIndex=${0} onClick=${onChangeRoom} onKeyDown=${e => e.key === 'Enter' && onChangeRoom()}>Change</a></p>
+        <p className="context">${rep.deck}.<a role="button" tabIndex=${0} onClick=${onChangeRoom} onKeyDown=${e => e.key === 'Enter' && onChangeRoom()}>Change the room</a></p>
+        <div className="venue">
+          <span className="chip"><${Icon} name=${WHERE[venue.where].icon} size=${40}/>${WHERE[venue.where].label}</span>
+          ${venue.where !== 'online' && html`<span className="chip"><${Icon} name=${ROOMS[venue.room].icon} size=${40}/>${ROOMS[venue.room].label}</span>`}
+          <span className="chip"><${Icon} name=${AGES[venue.oldest].icon} size=${40}/>Oldest ${AGES[venue.oldest].label.toLowerCase()}</span>
+        </div>
       </div>
       <div className="rscore">
         <div className="score"><b style=${{color:b.color}}>${rep.score}</b><span>score, ${b.label.toLowerCase()}</span></div>
-        <div className="catline">${Object.entries(CATS).map(([k, l]) => html`<span key=${k}>${l} <b style=${{color:band(deckCats[k]).color}}>${deckCats[k]}</b></span>`)}</div>
+        <div className="cats-strip">${Object.entries(CATS).map(([k, l]) => html`<div key=${k} className="cat"><${Icon} name=${'cat-' + k} size=${48}/><div><b style=${{color:band(deckCats[k]).color}}>${deckCats[k]}</b><span>${l}</span></div></div>`)}</div>
       </div>
     </header>
 
@@ -307,7 +317,7 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
       <div className="stagecol">
         <div className="stagebar">
           <div className="viewpick"><${Segmented} value=${VIEWS.includes(mode) ? mode : VIEWS[1]} onChange=${setMode} options=${VIEWS.map(value => ({value, label:MODES[value].label}))}/></div>
-          <div className="lenses"><label className="lens"><${Switch} size="small" checked=${older} onChange=${setOlder}/>Older eyes</label>
+          <div className="lenses">${venue.where !== 'online' && html`<label className="lens"><${Switch} size="small" checked=${led} onChange=${setLed}/>LED wall</label>`}<label className="lens"><${Switch} size="small" checked=${older} onChange=${setOlder}/>Older eyes</label>
           <label className="lens"><${Switch} size="small" checked=${cvd} onChange=${setCvd}/>Color blind</label></div>
           ${room && m.seat && html`<span className="note seatnote">Sitting in row ${rowOf(seat)}. Pick a row above to move.</span>`}
         </div>
@@ -316,7 +326,7 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
               <${SlideCanvas} src=${img} width=${w} room=${room} washout=${false} filter=${lens} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>
               <div className="faces" style=${{height:w * 9 / 16, width:faceW}}>${[0, 1, 2, 3].map(i => html`<div key=${i} className="face"><i></i></div>`)}</div>
             </div>`
-          : html`<${SlideCanvas} src=${img} width=${w} room=${room} washout=${m.washout} filter=${lens} heads=${m.heads}
+          : html`<${SlideCanvas} src=${img} width=${w} room=${room} washout=${m.washout} filter=${lens} heads=${m.heads} led=${ledOn && w > 360}
             captions=${false} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>`}
         </div>
         <div className="cap">${m.cap(room, seat)}${lensCap ? ' ' + lensCap : ''}</div>
@@ -331,7 +341,7 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
 
       <aside className="notes">
         <div className="panel-head"><h2>Slide ${cur + 1}</h2><span className="mono" style=${{color:band(s.score).color, fontWeight:600}}>${s.score}</span></div>
-        ${s.findings.length === 0 && html`<div className="allclear">Everyone will see this slide clearly.</div>`}
+        ${s.findings.length === 0 && html`<div className="allclear"><${Icon} name="all-clear" size=${140}/>Everyone will see this slide clearly.</div>`}
         <ol className="flist">
           ${s.findings.map((f, i) => html`<li key=${i} tabIndex=${0} className=${'finding ' + f.impact + (hl === i ? ' sel' : '')}
               onClick=${() => setHl(hl === i ? null : i)} onKeyDown=${e => e.key === 'Enter' && setHl(hl === i ? null : i)}>
@@ -402,7 +412,7 @@ function Main() {
   const canGo = i => i === 0 || (i === 1 && (pending || deck)) || (i === 2 && deck);
   return html`<div className="wrap">
     <div className="top">
-      <div className="brand"><img src="logo.svg" width="28" height="28" alt=""/><span className="brand-word">Slide<b>Ready</b></span></div>
+      <div className="brand"><img className="lockup" src="icons/logo-lockup.png" alt="SlideReady" height="40"/></div>
       <nav className="tabs">${tabs.map((l, i) => html`<button key=${l} className=${step === i ? 'on' : ''} disabled=${!canGo(i)} onClick=${() => canGo(i) && setStep(i)}>${l}</button>`)}</nav>
     </div>
     ${step === 0 && quota && html`<${QuotaNote} quota=${quota}/>`}
@@ -414,5 +424,5 @@ function Main() {
   </div>`;
 }
 
-const theme = {token:{colorPrimary:'#2346c8', colorText:'#151a22', colorTextSecondary:'#5b6472', colorBorder:'#dde1e7', fontFamily:'"Geist", system-ui, sans-serif', fontSize:14, borderRadius:8, colorBgLayout:'#f6f7f9'}};
+const theme = {token:{colorPrimary:'#3563c9', colorText:'#1d2740', colorTextSecondary:'#56617a', colorBorder:'#dce3ef', fontFamily:'"Nunito", ui-rounded, system-ui, sans-serif', fontSize:15, borderRadius:14, colorBgLayout:'#eef2f9'}};
 ReactDOM.createRoot(document.getElementById('root')).render(html`<${ConfigProvider} theme=${theme}><${AntApp}><${Main}/><//><//>`);

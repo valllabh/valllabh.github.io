@@ -8,8 +8,13 @@
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-2TEDJBT1YX');</script>
 <script src="config.js"></script>
 <meta name="description" content="See your slides the way the back row will. Check any deck for the room you are presenting in.">
-<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJTbGlkZVJlYWR5Ij4KICA8cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHJ4PSI4IiBmaWxsPSIjMjM0NmM4Ii8+CiAgPHJlY3QgeD0iNiIgeT0iNi41IiB3aWR0aD0iMjAiIGhlaWdodD0iMTMiIHJ4PSIyIiBmaWxsPSIjZmZmZmZmIi8+CiAgPHBhdGggZD0iTTExLjUgMTMuMmwzIDMgNi02LjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzIzNDZjOCIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxjaXJjbGUgY3g9IjEwIiBjeT0iMjQuNSIgcj0iMiIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIuOSIvPgogIDxjaXJjbGUgY3g9IjE2IiBjeT0iMjQuNSIgcj0iMiIgZmlsbD0iI2ZmZmZmZiIvPgogIDxjaXJjbGUgY3g9IjIyIiBjeT0iMjQuNSIgcj0iMiIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIuOSIvPgo8L3N2Zz4K">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="icon" type="image/png" href="icons/logo.png">
+<link rel="apple-touch-icon" href="icons/logo.png">
+<meta property="og:title" content="SlideReady">
+<meta property="og:description" content="See your slides the way the back row will.">
+<meta property="og:image" content="https://vallabh.me/app/slideready/icons/logo-full.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
 <style>
 /* Layout: calm work tool. Light theme only (VJ rule). One accent (cobalt); amber, red, green are status only.
    Radius rule: 8px for every surface and control, 2px for slide previews. Cards only where a choice is being made. */
@@ -269,10 +274,108 @@ html,body{overflow-x:clip;max-width:100%}
   .profile{padding:10px}
 }
 @media (prefers-reduced-motion:reduce){.profile:hover,.profile:active{transform:none}}
+
+/* ---------- clay world: soft puffy surfaces, rounded type, things press in ---------- */
+:root{
+  --surface:#eef2f9; --panel:#fbfcff; --sunk:#e3e9f4; --ink:#1d2740; --muted:#56617a; --faint:#8a94aa; --line:#dce3ef;
+  --accent:#3563c9; --accent-soft:#e6edfb; --sun:#f2c230; --good:#2f8f5b; --some:#c0801c; --high:#cf4334;
+  --r:20px;
+  --sans:"Nunito",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:"Fredoka","Nunito",ui-rounded,system-ui,sans-serif;
+  --clay:0 14px 28px -10px rgba(34,44,72,.28),0 3px 8px rgba(34,44,72,.08),inset 0 -5px 10px rgba(34,44,72,.07),inset 0 5px 10px rgba(255,255,255,.95);
+  --clay-sm:0 6px 14px -6px rgba(34,44,72,.30),inset 0 -3px 6px rgba(34,44,72,.08),inset 0 3px 6px rgba(255,255,255,.9);
+  --clay-in:inset 0 4px 10px rgba(34,44,72,.16),inset 0 -2px 4px rgba(255,255,255,.8);
+}
+html,body{background:var(--surface);font-family:var(--sans);color:var(--ink)}
+::selection{background:#f9e08a;color:var(--ink)}
+h1,h2,h3,.brand,.score b,.cat b,.pg-head b{font-family:var(--display);letter-spacing:-.01em}
+h1{font-weight:600}
+.mono{font-family:var(--sans);font-weight:800;font-variant-numeric:tabular-nums}
+.top{border-bottom:0}
+.tabs button.on{border-bottom-color:var(--sun)}
+.brand img{border-radius:10px;mix-blend-mode:multiply}
+.brand b{color:var(--accent)}
+
+/* choices: no box, centered, the chosen one rises onto a clay pedestal */
+.profiles{gap:8px}
+.profile{border:0;background:transparent;box-shadow:none;align-items:center;text-align:center;padding:16px 10px 14px;border-radius:26px;gap:2px;position:relative;
+  transition:transform 180ms cubic-bezier(.23,1,.32,1),background 180ms ease,box-shadow 180ms ease}
+.profile .icon{margin:0 auto 6px;transition:transform 220ms cubic-bezier(.23,1,.32,1)}
+@media (hover:hover){.profile:hover{border:0;box-shadow:none;transform:none}.profile:hover .icon{transform:translateY(-4px) rotate(-2deg)}}
+.profile:active{transform:scale(.97)}
+.profile b{font-family:var(--display);font-weight:600;font-size:16px}
+.profile span{font-size:13px;color:var(--muted)}
+.profile.on{background:var(--panel);box-shadow:var(--clay)}
+.profile.on b{color:var(--accent)}
+.profile.on::after{content:"";position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;background:var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat;box-shadow:var(--clay-sm)}
+.profile:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+
+/* buttons press like clay */
+.ant-btn{border-radius:999px!important;font-weight:700;transition:transform 140ms ease-out,box-shadow 140ms ease-out!important}
+.ant-btn-primary{box-shadow:0 10px 20px -8px rgba(34,44,72,.35),inset 0 -3px 0 rgba(0,0,0,.14),inset 0 2px 0 rgba(255,255,255,.3)!important}
+.ant-btn-primary:active{transform:translateY(2px) scale(.98);box-shadow:0 4px 10px -6px rgba(34,44,72,.35),inset 0 2px 4px rgba(0,0,0,.18)!important}
+.ant-btn-default{background:var(--panel)!important;border:0!important;box-shadow:var(--clay-sm)!important}
+.ant-btn-default:active{box-shadow:var(--clay-in)!important;transform:scale(.97)}
+
+/* surfaces */
+.ant-upload-wrapper .ant-upload-drag{border-radius:28px!important;border:2px dashed #c6d3ec!important;background:var(--panel)!important;box-shadow:var(--clay)}
+.progress,.stagebox,.notes,.seatmap{border:0!important;border-radius:26px;background:var(--panel);box-shadow:var(--clay)}
+.notes,.seatmap{padding:18px}
+.stagebox{background:linear-gradient(180deg,#e9eef8,#dfe6f3)}
+.pg-bar{height:10px;border-radius:99px;background:var(--sunk);box-shadow:var(--clay-in)}
+.pg-bar i{border-radius:99px;background:linear-gradient(90deg,#4f7fe0,var(--accent));box-shadow:inset 0 2px 0 rgba(255,255,255,.35)}
+.ant-segmented{border-radius:999px!important;padding:4px!important;background:var(--sunk)!important;box-shadow:var(--clay-in)}
+.ant-segmented-item{border-radius:999px!important}
+.ant-segmented-item-selected{background:var(--panel)!important;box-shadow:var(--clay-sm)!important}
+.sm-row{border-radius:8px!important;box-shadow:inset 0 -3px 4px rgba(34,44,72,.10),inset 0 2px 3px rgba(255,255,255,.7)}
+.film .thumb{border-radius:16px}
+.film .thumb.on{box-shadow:var(--clay);outline:0}
+.flist .finding{border-radius:18px}
+.flist .finding:hover,.flist .finding.sel{background:var(--surface)}
+
+/* results: who and where as clay chips, categories with their icons */
+.venue{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:4px 14px 4px 4px;border-radius:999px;background:var(--panel);box-shadow:var(--clay-sm);font-weight:700;font-size:14px}
+.chip img{border-radius:50%;background:#fff;mix-blend-mode:multiply}
+.cats-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px}
+@media (max-width:560px){.cats-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cat{display:flex;flex-direction:row;align-items:center;gap:8px;min-width:0}
+.cat img{flex:none;mix-blend-mode:multiply}
+.cat b{font-size:24px;line-height:1}
+.cat span{display:block;font-size:12px;color:var(--muted);font-weight:700}
+.allclear{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:12px 0 4px;font-family:var(--display);font-size:18px}
+.allclear img{mix-blend-mode:multiply}
+
+/* wordmark: always shown, clay embossed */
+.brand{gap:10px}
+.brand .brand-word{display:inline!important;font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:-.01em;color:var(--ink);
+  text-shadow:0 1px 0 rgba(255,255,255,.9),0 3px 6px rgba(34,44,72,.18)}
+.brand .brand-word b{color:var(--accent);font-weight:700}
+@media (max-width:420px){.brand img{width:30px;height:30px}.brand .brand-word{font-size:18px}.tabs button{padding-inline:7px;font-size:14px}}
+
+/* LED wall: the panel's dot grid, seen up close */
+.ledgrid{position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply;opacity:.55;
+  background-image:radial-gradient(circle at center,rgba(255,255,255,0) 52%,rgba(10,14,24,.55) 78%);background-size:4px 4px}
+
+.brand img.lockup{height:40px;width:auto;border-radius:0;mix-blend-mode:multiply}
+@media (max-width:420px){.brand img.lockup{height:30px}}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="f-led" color-interpolation-filters="sRGB" x="-5%" y="-5%" width="110%" height="110%">
+    <feComponentTransfer in="SourceGraphic" result="punch">
+      <feFuncR type="gamma" amplitude="1.08" exponent="1.45" offset="0"/>
+      <feFuncG type="gamma" amplitude="1.08" exponent="1.45" offset="0"/>
+      <feFuncB type="gamma" amplitude="1.12" exponent="1.4" offset="0"/>
+    </feComponentTransfer>
+    <feColorMatrix in="punch" type="saturate" values="1.45" result="vivid"/>
+    <feComponentTransfer in="vivid" result="bright">
+      <feFuncR type="linear" slope="3" intercept="-2"/><feFuncG type="linear" slope="3" intercept="-2"/><feFuncB type="linear" slope="3" intercept="-2"/>
+    </feComponentTransfer>
+    <feGaussianBlur in="bright" stdDeviation="3.5" result="glow"/>
+    <feBlend in="vivid" in2="glow" mode="screen"/>
+  </filter>
   <filter id="f-deut" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="0.367322 0.860646 -0.227968 0 0  0.280085 0.672501 0.047413 0 0  -0.011820 0.042940 0.968881 0 0  0 0 0 1 0"/></filter>
   <filter id="f-old" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="0.92 0 0 0 0.03  0 0.88 0 0 0.03  0 0 0.58 0 0.02  0 0 0 1 0"/></filter>
 </svg>
@@ -282,6 +385,6 @@ html,body{overflow-x:clip;max-width:100%}
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/antd@5.21.6/dist/antd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
-<script src="app.js?v=b5325032c1"></script>
+<script src="app.js?v=ae5053187c"></script>
 </body>
 </html>
