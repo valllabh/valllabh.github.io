@@ -373,8 +373,9 @@ h1{font-weight:600}
 .slide{border-radius:8px}
 .slide canvas{border-radius:inherit}
 /* slides and thumbnails sit straight on the page: rounded corners and a soft shadow, no box */
-.stagecol .stagebox{background:none!important;box-shadow:none!important;border-radius:0;padding:6px 0 10px}
-.slide{box-shadow:0 1px 3px rgba(34,44,72,.12),0 10px 26px rgba(34,44,72,.16)}
+.stagecol .stagebox{background:#0b0d12!important;box-shadow:0 10px 30px rgba(34,44,72,.22)!important;border-radius:14px;padding:28px 20px}
+@media (max-width:640px){.stagecol .stagebox{padding:16px 12px;border-radius:12px}}
+.slide{box-shadow:0 0 0 1px rgba(255,255,255,.06),0 12px 32px rgba(0,0,0,.5)}
 .film{padding:6px 6px 14px;margin:0 -6px}
 .film .thumb,.film .thumb:hover,.film .thumb.on{background:none;box-shadow:none;outline:0;padding:0;gap:8px}
 .film img{border-radius:8px;box-shadow:0 1px 2px rgba(34,44,72,.12),0 4px 12px rgba(34,44,72,.12);outline:2px solid transparent;outline-offset:2px;transition:transform 160ms ease-out,outline-color 160ms ease-out}
