@@ -1,4 +1,4 @@
-/* Slide readability web app. Plain React + Ant Design from CDN, no build step. */
+/* SlideReady */
 const html = htm.bind(React.createElement);
 const {useState, useMemo, useRef, useEffect, useLayoutEffect} = React;
 const {ConfigProvider, App: AntApp, Upload, Radio, Button, Segmented, Select, Spin, Alert, Collapse, Space} = antd;
@@ -33,13 +33,14 @@ async function api(path, opts = {}) {
 }
 
 // Published site: ask for an upload link, send the deck straight to S3, then run the check.
-async function cloudCheck(file, venue) {
+async function cloudCheck(file, venue, onPhase = () => {}) {
   const up = await jsonPost('/api/uploads', {filename:file.name, size:file.size});
   const fd = new FormData();
   Object.entries(up.upload.fields).forEach(([k, v]) => fd.append(k, v));
   fd.append('file', file);
   const s3 = await fetch(up.upload.url, {method:'POST', body:fd});
   if (!s3.ok) throw new ApiError({error:'The upload did not go through. Try again.'}, s3.status);
+  onPhase('uploaded');
   return jsonPost(`/api/checks/${up.id}`, venue);
 }
 const jsonPost = (path, data) => api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
@@ -58,7 +59,6 @@ function useWidth() {
 const toLin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
 const toSrgb = l => { l = Math.max(0, Math.min(1, l)); return 255 * (l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055); };
 
-// Map every pixel through the screen's light: lifted blacks, reduced range.
 function washLut(room) {
   const n = room.white + room.ambient, lut = new Uint8ClampedArray(256);
   for (let c = 0; c < 256; c++) lut[c] = toSrgb((room.black + (room.white - room.black) * toLin(c) + room.ambient) / n);
@@ -112,8 +112,8 @@ const MODES = {
   room:{label:'In the room', washout:true, heads:true, cap:r => `Projected in this room under its light.${r && r.dead_zone ? ' The amber line marks where heads block the view.' : ''}`},
   back:{label:'Back row', washout:true, heads:true, seat:true, filter:'blur(.6px)', cap:(r, seat) => `About how big the screen looks from row ${rowOf(seat)}.`},
   older:{label:'Older eyes', washout:true, filter:'url(#f-old) blur(.5px)', cap:() => 'Through an older lens: less blue, less contrast, softer focus.'},
-  cvd:{label:'Color blind', filter:'url(#f-deut)', cap:() => 'Deuteranopia, the most common type of color blindness.'},
-  stream:{label:'On the stream', filter:'blur(.4px)', pip:true, cap:() => 'A 720p stream with the speaker video in the corner.'},
+  cvd:{label:'Color blind', filter:'url(#f-deut)', cap:() => 'How the most common kind of color blindness sees it.'},
+  stream:{label:'On the stream', filter:'blur(.4px)', pip:true, cap:() => 'A typical video stream, with the speaker in the corner.'},
 };
 
 /* ---------- screens ---------- */
@@ -136,7 +136,41 @@ function RoomArt({k}) {
   </svg>`;
 }
 
-function SetupStep({venue, setVenue, onRun, busy, error, fileName}) {
+/* ---------- progress while a check runs ---------- */
+const STEPS = [
+  {title:'Uploading your deck', joke:'Carrying it to the venue. Carefully.'},
+  {title:'Rendering every slide', joke:'Warming up the projector. It is older than it looks.'},
+  {title:'Measuring every letter', joke:'Rulers out. Yes, all of them.'},
+  {title:'Simulating the room light', joke:'Dimming the house lights. Someone always leaves one on.'},
+  {title:'Seating the audience', joke:'Row 18 has asked for a bigger font.'},
+  {title:'Working out what matters', joke:'Footnotes are being judged. Quietly.'},
+  {title:'Writing the report', joke:'Wording the bad news kindly.'},
+];
+const STEP_SECONDS = 6;
+
+function CheckProgress({uploaded, rescoring}) {
+  const [t0] = useState(() => Date.now());
+  const [now, setNow] = useState(Date.now());
+  const [upAt, setUpAt] = useState(null);
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(id); }, []);
+  useEffect(() => { if (uploaded && !upAt) setUpAt(Date.now()); }, [uploaded]);
+  const secs = (now - t0) / 1000;
+  if (rescoring) return html`<div className="progress"><div className="pg-bar"><i style=${{width:'70%'}}></i></div><p className="note">Rearranging the chairs for the new room.</p></div>`;
+  const since = upAt ? (now - upAt) / 1000 : 0;
+  const cur = !upAt ? 0 : Math.min(STEPS.length - 1, 1 + Math.floor(since / STEP_SECONDS));
+  const pct = Math.min(96, 100 * (1 - Math.exp(-secs / 18)));
+  const mmss = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
+  return html`<div className="progress" role="status" aria-live="polite">
+    <div className="pg-head"><b>Rehearsing your talk</b><span className="mono">${mmss}</span></div>
+    <div className="pg-bar"><i style=${{width:pct + '%'}}></i></div>
+    <ol className="pg-steps">${STEPS.map((s, i) => html`<li key=${i} className=${i < cur ? 'done' : i === cur ? 'now' : 'todo'}>
+      <span className="pg-mark">${i < cur ? '✓' : ''}</span>
+      <div><div className="pg-title">${s.title}</div>${i === cur && html`<div className="pg-joke">${s.joke}</div>`}</div>
+    </li>`)}</ol>
+  </div>`;
+}
+
+function SetupStep({venue, setVenue, onRun, busy, error, fileName, uploaded, rescoring}) {
   const set = k => v => setVenue({...venue, [k]:v});
   const inRoom = venue.where !== 'online';
   return html`<div className="intake">
@@ -151,8 +185,8 @@ function SetupStep({venue, setVenue, onRun, busy, error, fileName}) {
     ${inRoom && html`<${Collapse} ghost items=${[{key:'a', label:'Fine tune the room (optional)', children:html`<div className="q"><h2>Room light</h2>
       <${Radio.Group} optionType="button" value=${venue.light} onChange=${e => set('light')(e.target.value)} options=${Object.entries(LIGHTS).map(([value, label]) => ({value, label}))}/></div>`}]}/>`}
     ${error && html`<${Alert} type="error" showIcon message=${error}/>`}
-    <div className="actions"><${Button} type="primary" size="large" loading=${busy} onClick=${onRun}>${busy ? 'Checking slides' : 'See results'}<//>
-      ${busy && html`<span className="note">Rendering every slide and checking it for this room. Usually 15 to 45 seconds.</span>`}</div>
+    ${busy ? html`<${CheckProgress} uploaded=${uploaded} rescoring=${rescoring}/>`
+      : html`<div className="actions"><${Button} type="primary" size="large" onClick=${onRun}>See results<//></div>`}
   </div>`;
 }
 
@@ -176,7 +210,7 @@ function UploadStep({onFile, onSample, samples}) {
         <span className="note">Or try a sample:</span>
         ${samples.map(s => html`<${Button} key=${s} onClick=${() => onSample(s)}>${s.replace('.pptx', '')}<//>`)}
       </div>
-      <p className="note" style=${{marginTop:20}}>Slides are checked by an AI service and deleted after 24 hours. Nothing is kept or shared.</p>
+      <p className="note" style=${{marginTop:20}}>Your slides are deleted after 24 hours. Nothing is kept or shared.</p>
     </div>
   </div>`;
 }
@@ -287,13 +321,14 @@ function Main() {
   const [error, setError] = useState(null);
   const [samples, setSamples] = useState([]);
   const [quota, setQuota] = useState(null);           // {title, message} once the budget is used up
+  const [uploaded, setUploaded] = useState(false);
   useEffect(() => {
     if (CLOUD) { setSamples(['problems.pptx']); api('/api/status').then(s => setQuota(s.quota)).catch(() => {}); }
     else api('/api/options').then(o => setSamples(o.samples)).catch(() => {});
   }, []);
 
   const run = async () => {
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setUploaded(!CLOUD);
     const t0 = Date.now();
     try {
       let res;
@@ -307,7 +342,7 @@ function Main() {
           file = new File([blob], pending.sample, {type: blob.type});
         }
         track('check_start', {sample: !!pending.sample, where: venue.where, room: venue.room});
-        res = await cloudCheck(file, venue);
+        res = await cloudCheck(file, venue, () => setUploaded(true));
         res.report.deck = pending.sample ? `${pending.sample} (sample)` : res.report.deck;
         track('check_done', {score: res.report.score, slides: res.report.slides.length, seconds: Math.round((Date.now() - t0) / 1000)});
       } else if (pending.sample) res = await jsonPost(`/api/samples/${encodeURIComponent(pending.sample)}`, venue);
@@ -327,12 +362,13 @@ function Main() {
   const canGo = i => i === 0 || (i === 1 && (pending || deck)) || (i === 2 && deck);
   return html`<div className="wrap">
     <div className="top">
-      <div className="brand">Slide readability</div>
+      <div className="brand"><img src="logo.svg" width="28" height="28" alt=""/><span>Slide<b>Ready</b></span></div>
       <nav className="tabs">${tabs.map((l, i) => html`<button key=${l} className=${step === i ? 'on' : ''} disabled=${!canGo(i)} onClick=${() => canGo(i) && setStep(i)}>${l}</button>`)}</nav>
     </div>
     ${step === 0 && quota && html`<${QuotaNote} quota=${quota}/>`}
     ${step === 0 && !quota && html`<${UploadStep} samples=${samples} onFile=${f => { setPending({file:f}); setStep(1); }} onSample=${s => { setPending({sample:s}); setStep(1); }}/>`}
     ${step === 1 && html`<${SetupStep} venue=${venue} setVenue=${setVenue} onRun=${run} busy=${busy} error=${error}
+        uploaded=${uploaded} rescoring=${!!(deck && !pending)}
         fileName=${pending ? (pending.file ? pending.file.name : pending.sample) : deck && deck.report.deck}/>`}
     ${step === 2 && deck && html`<${ResultsStep} deck=${deck} setDeck=${setDeck} venue=${venue} onChangeRoom=${() => setStep(1)}/>`}
   </div>`;

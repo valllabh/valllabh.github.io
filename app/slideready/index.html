@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Slide Readability</title>
+<title>SlideReady</title>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-2TEDJBT1YX"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-2TEDJBT1YX');</script>
 <script src="config.js"></script>
+<meta name="description" content="See your slides the way the back row will. Check any deck for the room you are presenting in.">
+<link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJTbGlkZVJlYWR5Ij4KICA8cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHJ4PSI4IiBmaWxsPSIjMjM0NmM4Ii8+CiAgPHJlY3QgeD0iNiIgeT0iNi41IiB3aWR0aD0iMjAiIGhlaWdodD0iMTMiIHJ4PSIyIiBmaWxsPSIjZmZmZmZmIi8+CiAgPHBhdGggZD0iTTExLjUgMTMuMmwzIDMgNi02LjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzIzNDZjOCIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxjaXJjbGUgY3g9IjEwIiBjeT0iMjQuNSIgcj0iMiIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIuOSIvPgogIDxjaXJjbGUgY3g9IjE2IiBjeT0iMjQuNSIgcj0iMiIgZmlsbD0iI2ZmZmZmZiIvPgogIDxjaXJjbGUgY3g9IjIyIiBjeT0iMjQuNSIgcj0iMiIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIuOSIvPgo8L3N2Zz4K">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: calm work tool. Light theme only (VJ rule). One accent (cobalt); amber, red, green are status only.
@@ -180,13 +182,31 @@ button:active,.ant-btn:active{transform:translateY(1px)}
 .tabs button:disabled{color:var(--line);cursor:default}
 .film img{display:block;border-radius:2px;box-shadow:0 1px 2px rgba(21,26,34,.12)}
 .panel-head{align-items:baseline}
+.progress{display:flex;flex-direction:column;gap:12px;max-width:520px;padding:18px 20px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+.pg-head{display:flex;justify-content:space-between;align-items:baseline}
+.pg-head b{font-weight:600}
+.pg-bar{height:4px;background:var(--sunk);border-radius:2px;overflow:hidden}
+.pg-bar i{display:block;height:100%;background:var(--accent);transition:width 250ms linear}
+.pg-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.pg-steps li{display:flex;gap:10px;align-items:flex-start;color:var(--faint)}
+.pg-steps li.done{color:var(--muted)}
+.pg-steps li.now{color:var(--ink)}
+.pg-mark{flex:none;width:18px;height:18px;border-radius:50%;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:11px;margin-top:2px}
+.pg-steps li.done .pg-mark{background:var(--good);border-color:var(--good);color:#fff}
+.pg-steps li.now .pg-mark{border-color:var(--accent);border-top-color:transparent;animation:pgspin .9s linear infinite}
+.pg-title{font-weight:500}
+.pg-steps li.now .pg-title{font-weight:600}
+.pg-joke{font-size:13px;color:var(--muted);margin-top:1px}
+@keyframes pgspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.pg-steps li.now .pg-mark{animation:none;border-top-color:var(--accent)}}
+.brand{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;letter-spacing:-.02em}
+.brand b{color:var(--accent);font-weight:600}
+.brand img{display:block;border-radius:8px}
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <!-- Machado 2009 deuteranopia, severity 1.0, applied in linear RGB -->
   <filter id="f-deut" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="0.367322 0.860646 -0.227968 0 0  0.280085 0.672501 0.047413 0 0  -0.011820 0.042940 0.968881 0 0  0 0 0 1 0"/></filter>
-  <!-- Aging lens: blue absorbed, contrast reduced -->
   <filter id="f-old" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="0.92 0 0 0 0.03  0 0.88 0 0 0.03  0 0 0.58 0 0.02  0 0 0 1 0"/></filter>
 </svg>
 <div id="root"></div>
@@ -195,6 +215,6 @@ button:active,.ant-btn:active{transform:translateY(1px)}
 <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/antd@5.21.6/dist/antd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
-<script src="app.js?v=003a8f0b22"></script>
+<script src="app.js?v=f37bb45635"></script>
 </body>
 </html>
