@@ -412,6 +412,7 @@ function Main() {
         uploaded=${uploaded} cached=${cached} rescoring=${!!(deck && !pending)}
         fileName=${pending ? (pending.file ? pending.file.name : pending.sample) : deck && deck.report.deck}/>`}
     ${step === 2 && deck && html`<${ResultsStep} deck=${deck} setDeck=${setDeck} venue=${venue} onChangeRoom=${() => setStep(1)}/>`}
+    <footer className="foot">Made by <a href="https://vallabh.me">Vallabh</a></footer>
   </div>`;
 }
 
