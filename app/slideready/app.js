@@ -125,7 +125,7 @@ function Heads({dz, width, height}) {
   const hz = dz * height, n = Math.max(5, Math.round(width / 80));
   const rows = [{cy:hz * .55, r:hz * .17, off:0, op:.42}, {cy:hz * .92, r:hz * .25, off:.5, op:.58}];
   return html`<div className="heads" style=${{height:hz}}>
-    <div className="line"><span>Hidden past row 3</span></div>
+    <div className="line"><span>Hidden by heads</span></div>
     <svg width=${width} height=${hz} aria-hidden="true">${rows.map((r, ri) => Array.from({length:n + 1}, (_, i) => {
       const cx = (i + r.off) * width / n;
       return html`<g key=${ri + '-' + i} opacity=${r.op}><ellipse cx=${cx} cy=${r.cy} rx=${r.r * .82} ry=${r.r} fill="#1d2330"/><ellipse cx=${cx} cy=${r.cy + r.r * 1.95} rx=${r.r * 2.2} ry=${r.r * 1.25} fill="#1d2330"/></g>`;
@@ -135,7 +135,7 @@ function Heads({dz, width, height}) {
 
 const MODES = {
   laptop:{label:'Your laptop', cap:() => 'Your slide as it looks on your own screen.'},
-  room:{label:'In the room', washout:true, heads:true, cap:r => `Projected in this room under its light.${r && r.dead_zone ? ' The amber line marks where heads block the view.' : ''}`},
+  room:{label:'In the room', washout:true, heads:true, cap:r => `Projected in this room.${r && r.dead_zone ? ' Heads block what is below the amber line.' : ''}`},
   stream:{label:'On a call', call:true, cap:() => 'Shared on Zoom or Teams: your slide in a small window next to everyone\'s faces.'},
 };
 
@@ -269,7 +269,7 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
   const back = backRow && !!room && !!m.washout;
   const seat = room ? rowFt(room.rows) : 10;
   const lens = [ledOn && 'url(#f-led)', back && 'blur(.6px)', older && 'url(#f-old) blur(.5px)', cvd && 'url(#f-deut)'].filter(Boolean).join(' ') || undefined;
-  const lensCap = [back && `Back row: about how big the screen looks from row ${room.rows}.`, ledOn && 'LED wall: brighter and punchier, dark grays sink to black, bright text glows.', older && 'Older eyes: less blue, less contrast, softer focus.', cvd && 'Color blind: the most common kind.'].filter(Boolean).join(' ');
+  const lensCap = [back && 'Seen from the back row.', ledOn && 'On an LED wall.', older && 'Through older eyes.', cvd && 'Through color blind eyes.'].filter(Boolean).join(' ');
   const narrow = stageW < 560;
   const inner = Math.max(160, narrow ? stageW : stageW - 48);
   const faceW = Math.round(Math.min(110, Math.max(36, inner * 0.14)));
@@ -278,13 +278,10 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
   if (back) w = Math.max(140, Math.min(inner, inner * rowFt(3) / seat));
   if (m.call) w = Math.max(120, narrow ? inner - faceW - 28 : Math.min(inner * 0.66, 640));
 
-  const map = rep.seat_map, last = map && map[map.length - 1];
-  const clear = map ? (map.find(r => r.miss) ? map.find(r => r.miss).row - 1 : map.length) : null;
+  const map = rep.seat_map;
   const n = rep.slides.length, withIssues = rep.slides.filter(x => x.findings.some(f => f.impact !== 'minor')).length;
-  const headline = !map ? (withIssues ? `${withIssues} of ${n} slides will be hard to follow online.` : 'Every slide works for online viewers.')
-    : clear === map.length ? 'Every row can read every slide.'
-    : clear === 0 ? `Even the front row will miss text on ${map[0].miss} ${map[0].miss === 1 ? 'slide' : 'slides'}.`
-    : `Up to row ${clear}, everyone reads every slide. Further back, people miss text on ${last.miss} ${last.miss === 1 ? 'slide' : 'slides'}.`;
+  const headline = withIssues === 0 ? (map ? 'Every slide is ready for this room.' : 'Every slide is ready for online viewers.')
+    : `${withIssues} of ${n} slides need fixes.`;
   const deckCats = Object.fromEntries(Object.keys(CATS).map(k => [k, Math.round(rep.slides.reduce((a, x) => a + x.categories[k], 0) / n)]));
   const b = band(rep.score);
 
