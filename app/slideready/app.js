@@ -1,10 +1,10 @@
 /* SlideReady */
 const html = htm.bind(React.createElement);
 const {useState, useMemo, useRef, useEffect, useLayoutEffect} = React;
-const {ConfigProvider, App: AntApp, Upload, Radio, Button, Segmented, Select, Spin, Alert, Collapse, Space} = antd;
+const {ConfigProvider, App: AntApp, Upload, Radio, Button, Segmented, Switch, Alert, Collapse, Space} = antd;
 
 /* ---------- room choices shown to people ---------- */
-const WHERE = {room:{label:'In the room', sub:'Everyone is there in person'}, online:{label:'Online', sub:'Video call or webinar'}, both:{label:'Both', sub:'In the room and streamed'}};
+const WHERE = {room:{label:'In the room', sub:'Everyone is there in person'}, online:{label:'Online', sub:'Zoom, Teams or a webinar'}, both:{label:'Both', sub:'In the room and on a call'}};
 const ROOMS = {
   small:{label:'Small room', sub:'Up to 30 people', depth:25, floor:'flat'},
   medium:{label:'Medium room', sub:'About 100 people', depth:60, floor:'flat'},
@@ -111,9 +111,7 @@ const MODES = {
   laptop:{label:'Your laptop', cap:() => 'Your slide as it looks on your own screen.'},
   room:{label:'In the room', washout:true, heads:true, cap:r => `Projected in this room under its light.${r && r.dead_zone ? ' The amber line marks where heads block the view.' : ''}`},
   back:{label:'Back row', washout:true, heads:true, seat:true, filter:'blur(.6px)', cap:(r, seat) => `About how big the screen looks from row ${rowOf(seat)}.`},
-  older:{label:'Older eyes', washout:true, filter:'url(#f-old) blur(.5px)', cap:() => 'Through an older lens: less blue, less contrast, softer focus.'},
-  cvd:{label:'Color blind', filter:'url(#f-deut)', cap:() => 'How the most common kind of color blindness sees it.'},
-  stream:{label:'On the stream', filter:'blur(.4px)', pip:true, cap:() => 'A typical video stream, with the speaker in the corner.'},
+  stream:{label:'On a call', call:true, cap:() => 'Shared on Zoom or Teams: your slide in a small window next to everyone\'s faces.'},
 };
 
 /* ---------- screens ---------- */
@@ -231,13 +229,17 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
   const pins = s.findings.map((f, i) => { const l = f.lines.length && findLine(f.lines[0]); return l ? {n:i + 1, x:l.left, y:l.top, impact:f.impact, key:i, on:hl === i} : null; }).filter(Boolean);
   const boxes = hl == null ? [] : (s.findings[hl] ? s.findings[hl].lines.map(findLine).filter(Boolean) : []);
 
-  const MAIN = venue.where === 'online' ? ['laptop', 'stream'] : ['laptop', 'room', 'back'];
-  const more = ['older', 'cvd', 'stream'].filter(k => !MAIN.includes(k) && (k !== 'stream' || venue.where !== 'room')).map(value => ({value, label:MODES[value].label}));
-  const m = MODES[mode];
+  const VIEWS = venue.where === 'online' ? ['laptop', 'stream'] : venue.where === 'both' ? ['laptop', 'room', 'back', 'stream'] : ['laptop', 'room', 'back'];
+  const [older, setOlder] = useState(false);
+  const [cvd, setCvd] = useState(false);
+  const m = MODES[VIEWS.includes(mode) ? mode : VIEWS[1]];
+  // Older eyes and color blindness layer on top of whichever view is chosen.
+  const lens = [m.filter, older && 'url(#f-old) blur(.5px)', cvd && 'url(#f-deut)'].filter(Boolean).join(' ') || undefined;
+  const lensCap = [older && 'Older eyes: less blue, less contrast, softer focus.', cvd && 'Color blind: the most common kind.'].filter(Boolean).join(' ');
   const inner = Math.max(240, stageW - 48);
   let w = inner;
   if (m.seat && room) w = Math.min(inner, 2304 * room.screen_h / seat * 16 / 9);
-  if (m.pip) w = Math.min(inner, 640);
+  if (m.call) w = Math.min(inner * 0.66, 640);
 
   const map = rep.seat_map, last = map && map[map.length - 1];
   const clear = map ? (map.find(r => r.miss) ? map.find(r => r.miss).row - 1 : map.length) : null;
@@ -274,15 +276,20 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
     <div className="workspace">
       <div className="stagecol">
         <div className="stagebar">
-          <${Segmented} value=${MAIN.includes(mode) ? mode : null} onChange=${setMode} options=${MAIN.map(value => ({value, label:MODES[value].label}))}/>
-          ${more.length > 0 && html`<${Select} placeholder="See it as" value=${MAIN.includes(mode) ? undefined : mode} onChange=${setMode} options=${more} style=${{minWidth:140}} allowClear onClear=${() => setMode(MAIN[1])}/>`}
+          <${Segmented} value=${VIEWS.includes(mode) ? mode : VIEWS[1]} onChange=${setMode} options=${VIEWS.map(value => ({value, label:MODES[value].label}))}/>
+          <label className="lens"><${Switch} size="small" checked=${older} onChange=${setOlder}/>Older eyes</label>
+          <label className="lens"><${Switch} size="small" checked=${cvd} onChange=${setCvd}/>Color blind</label>
           ${room && m.seat && html`<span className="note seatnote">Sitting in row ${rowOf(seat)}. Pick a row above to move.</span>`}
         </div>
         <div className="stagebox" ref=${stageRef}>
-          <${SlideCanvas} src=${img} width=${w} room=${room} washout=${m.washout} filter=${m.filter} heads=${m.heads}
-            captions=${false} pip=${m.pip} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>
+          ${m.call ? html`<div className="call">
+              <${SlideCanvas} src=${img} width=${w} room=${room} washout=${false} filter=${lens} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>
+              <div className="faces" style=${{height:w * 9 / 16}}>${[0, 1, 2, 3].map(i => html`<div key=${i} className="face"><i></i></div>`)}</div>
+            </div>`
+          : html`<${SlideCanvas} src=${img} width=${w} room=${room} washout=${m.washout} filter=${lens} heads=${m.heads}
+            captions=${false} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>`}
         </div>
-        <div className="cap">${m.cap(room, seat)}</div>
+        <div className="cap">${m.cap(room, seat)}${lensCap ? ' ' + lensCap : ''}</div>
         <div className="film" role="list">
           ${rep.slides.map((x, i) => html`<div key=${x.image} role="listitem" tabIndex=${0} className=${'thumb' + (i === cur ? ' on' : '')}
               onClick=${() => { setCur(i); setHl(null); }} onKeyDown=${e => e.key === 'Enter' && (setCur(i), setHl(null))}>
