@@ -372,6 +372,16 @@ h1{font-weight:600}
 .film img{border-radius:8px}
 .slide{border-radius:8px}
 .slide canvas{border-radius:inherit}
+/* slides and thumbnails sit straight on the page: rounded corners and a soft shadow, no box */
+.stagecol .stagebox{background:none!important;box-shadow:none!important;border-radius:0;padding:6px 0 10px}
+.slide{box-shadow:0 1px 3px rgba(34,44,72,.12),0 10px 26px rgba(34,44,72,.16)}
+.film{padding:6px 6px 14px;margin:0 -6px}
+.film .thumb,.film .thumb:hover,.film .thumb.on{background:none;box-shadow:none;outline:0;padding:0;gap:8px}
+.film img{border-radius:8px;box-shadow:0 1px 2px rgba(34,44,72,.12),0 4px 12px rgba(34,44,72,.12);outline:2px solid transparent;outline-offset:2px;transition:transform 160ms ease-out,outline-color 160ms ease-out}
+.film .thumb.on img{outline-color:var(--accent)}
+.film .thumb:focus-visible{outline:0}.film .thumb:focus-visible img{outline-color:var(--accent)}
+@media (hover:hover){.film .thumb:hover img{transform:translateY(-2px)}}
+.film .meta{padding:0 2px}
 </style>
 </head>
 <body>
