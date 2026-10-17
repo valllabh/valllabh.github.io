@@ -20,7 +20,6 @@ const AGES = {
 const ICON = name => `icons/${name}.png`;
 const Icon = ({name, size = 104, className = 'icon'}) => html`<img className=${className} src=${ICON(name)} width=${size} height=${size} alt="" loading="lazy" decoding="async" draggable=${false}/>`;
 const LIGHTS = {dark:'Dark', dimmed:'Dimmed', on:'Lights on', day:'Daylight'};
-const IMPACT = {high:'Most of the room', some:'Some people', minor:'Minor'};
 const CATS = {see:'See', read:'Read', color:'Color', follow:'Follow'};
 const band = s => s >= 85 ? {label:'Ready for this room', color:'var(--good)'} : s >= 65 ? {label:'Needs a few fixes', color:'var(--some)'} : {label:'Needs work', color:'var(--high)'};
 const rowFt = r => 10 + (r - 1) * 3;
@@ -88,9 +87,9 @@ function washLut(room) {
   return lut;
 }
 
-function SlideCanvas({src, width, room, washout, filter, highlight, pins, onPin, heads, captions, pip, led}) {
+function SlideCanvas({src, width, ratio = 16 / 9, room, washout, filter, highlight, pins, onPin, heads, captions, pip, led}) {
   const canvas = useRef(null);
-  const H = width * 9 / 16;
+  const H = width / ratio;
   useEffect(() => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -253,6 +252,9 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
 
   const imgUrl = x => x.image_url || `/api/decks/${deck.id}/${x.image}`;
   const s = rep.slides[cur], img = imgUrl(s);
+  // Slide shape from the image itself: decks can be 16:9, 4:3, A4 and others.
+  const [ratio, setRatio] = useState(16 / 9);
+  useEffect(() => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => i.naturalHeight && setRatio(i.naturalWidth / i.naturalHeight); i.src = img; }, [img]);
   const findLine = text => s.lines.find(l => l.text === text);
   const pins = s.findings.map((f, i) => { const l = f.lines.length && findLine(f.lines[0]); return l ? {n:i + 1, x:l.left, y:l.top, impact:f.impact, key:i, on:hl === i} : null; }).filter(Boolean);
   const boxes = hl == null ? [] : (s.findings[hl] ? s.findings[hl].lines.map(findLine).filter(Boolean) : []);
@@ -312,17 +314,17 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
         </div>
         <div className="stagebox" ref=${stageRef}>
           ${m.call ? html`<div className="call">
-              <${SlideCanvas} src=${img} width=${w} room=${room} washout=${false} filter=${lens} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>
-              <div className="faces" style=${{height:w * 9 / 16, width:faceW}}>${[0, 1, 2, 3].map(i => html`<div key=${i} className="face"><i></i></div>`)}</div>
+              <${SlideCanvas} src=${img} width=${w} ratio=${ratio} room=${room} washout=${false} filter=${lens} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>
+              <div className="faces" style=${{height:w / ratio, width:faceW}}>${[0, 1, 2, 3].map(i => html`<div key=${i} className="face"><i></i></div>`)}</div>
             </div>`
-          : html`<${SlideCanvas} src=${img} width=${w} room=${room} washout=${m.washout} filter=${lens} heads=${m.heads} led=${ledOn && w > 360}
+          : html`<${SlideCanvas} src=${img} width=${w} ratio=${ratio} room=${room} washout=${m.washout} filter=${lens} heads=${m.heads} led=${ledOn && w > 360}
             captions=${false} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>`}
         </div>
         <div className="cap">${m.cap(room)}${lensCap ? ' ' + lensCap : ''}</div>
         <div className="film" role="list">
           ${rep.slides.map((x, i) => html`<div key=${x.image} role="listitem" tabIndex=${0} className=${'thumb' + (i === cur ? ' on' : '')}
               onClick=${() => { setCur(i); setHl(null); }} onKeyDown=${e => e.key === 'Enter' && (setCur(i), setHl(null))}>
-            <img src=${imgUrl(x)} crossOrigin="anonymous" width="132" height="74" alt=${'Slide ' + (i + 1)} loading="lazy"/>
+            <img src=${imgUrl(x)} crossOrigin="anonymous" width="132" height=${Math.round(132 / ratio)} alt=${'Slide ' + (i + 1)} loading="lazy"/>
             <div className="meta"><span>${i + 1}</span><b style=${{color:band(x.score).color}}>${x.score}</b></div>
           </div>`)}
         </div>
@@ -339,7 +341,7 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
               <div className="t">${f.title}</div>
               <p>${f.detail}</p>
               ${f.lines.length > 0 && html`<p className="quote">${f.lines.slice(0, 3).map(t => t.length > 48 ? t.slice(0, 47) + '…' : t).join(' / ')}${f.lines.length > 3 ? ` and ${f.lines.length - 3} more` : ''}</p>`}
-              <div className="row"><span className="who">${IMPACT[f.impact]}: ${f.who.charAt(0).toLowerCase() + f.who.slice(1)}</span></div>
+              <div className="row"><span className="who">Affects ${f.who.charAt(0).toLowerCase() + f.who.slice(1)}</span></div>
             </div>
           </li>`)}
         </ol>
