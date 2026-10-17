@@ -4,14 +4,21 @@ const {useState, useMemo, useRef, useEffect, useLayoutEffect} = React;
 const {ConfigProvider, App: AntApp, Upload, Radio, Button, Segmented, Switch, Alert, Collapse, Space} = antd;
 
 /* ---------- room choices shown to people ---------- */
-const WHERE = {room:{label:'In the room', sub:'Everyone is there in person'}, online:{label:'Online', sub:'Zoom, Teams or a webinar'}, both:{label:'Both', sub:'In the room and on a call'}};
+const WHERE = {room:{label:'In the room', sub:'Everyone is there in person', icon:'where-room'}, online:{label:'Online', sub:'Zoom, Teams or a webinar', icon:'where-online'}, both:{label:'Both', sub:'In the room and on a call', icon:'where-both'}};
 const ROOMS = {
-  small:{label:'Small room', sub:'Up to 30 people', depth:25, floor:'flat'},
-  medium:{label:'Medium room', sub:'About 100 people', depth:60, floor:'flat'},
-  large:{label:'Large hall', sub:'About 300 people', depth:110, floor:'flat'},
-  huge:{label:'Auditorium or stage', sub:'500 or more, sloped seats, LED wall', depth:150, floor:'sloped'},
+  small:{label:'Small room', sub:'Up to 30 people', depth:25, floor:'flat', icon:'room-small'},
+  medium:{label:'Medium room', sub:'About 100 people', depth:60, floor:'flat', icon:'room-medium'},
+  large:{label:'Large hall', sub:'About 300 people', depth:110, floor:'flat', icon:'room-large'},
+  huge:{label:'Auditorium or stage', sub:'500 or more, sloped seats, LED wall', depth:150, floor:'sloped', icon:'room-huge'},
 };
-const AGES = {u40:'Under 40', '40s':'40 to 59', '60s':'60 to 74', '75':'75 or older'};
+const AGES = {
+  u40:{label:'Under 40', sub:'Sharp eyes all round', icon:'age-u40'},
+  '40s':{label:'40 to 59', sub:'Reading glasses on standby', icon:'age-40s'},
+  '60s':{label:'60 to 74', sub:'Glasses on, front seats taken', icon:'age-60s'},
+  '75':{label:'75 or older', sub:'Has seen every slide since overhead projectors', icon:'age-75'},
+};
+const ICON = name => `icons/${name}.png`;
+const Icon = ({name, size = 104, className = 'icon'}) => html`<img className=${className} src=${ICON(name)} width=${size} height=${size} alt="" loading="lazy" decoding="async" draggable=${false}/>`;
 const LIGHTS = {dark:'Dark', dimmed:'Dimmed', on:'Lights on', day:'Daylight'};
 const IMPACT = {high:'Most of the room', some:'Some people', minor:'Minor'};
 const CATS = {see:'See', read:'Read', color:'Color', follow:'Follow'};
@@ -32,9 +39,26 @@ async function api(path, opts = {}) {
   return body;
 }
 
-// Published site: ask for an upload link, send the deck straight to S3, then run the check.
+// SHA-256 of the file, lowercase hex. Empty when the browser cannot hash (insecure origin).
+async function sha256(file) {
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) { return ''; }
+}
+
+// Published site: hash the deck, ask for an upload link (or reuse a report for the same file),
+// send the deck straight to S3, then run the check.
 async function cloudCheck(file, venue, onPhase = () => {}) {
-  const up = await jsonPost('/api/uploads', {filename:file.name, size:file.size});
+  const hash = await sha256(file);
+  const up = await jsonPost('/api/uploads', hash ? {filename:file.name, size:file.size, sha256:hash} : {filename:file.name, size:file.size});
+  if (up.cached) {
+    track('check_cached', {size: file.size});
+    onPhase('uploaded', {cached:true});
+    const res = await jsonPost(`/api/checks/${up.id}`, venue);
+    res.cached = true;
+    return res;
+  }
   const fd = new FormData();
   Object.entries(up.upload.fields).forEach(([k, v]) => fd.append(k, v));
   fd.append('file', file);
@@ -115,23 +139,11 @@ const MODES = {
 };
 
 /* ---------- screens ---------- */
-function Pick({items, value, onChange, art}) {
-  return html`<div className="profiles" role="radiogroup">${Object.entries(items).map(([k, it]) => html`<div key=${k} role="radio" aria-checked=${value === k} tabIndex=${0}
-      className=${'profile' + (value === k ? ' on' : '')} onClick=${() => onChange(k)} onKeyDown=${e => e.key === 'Enter' && onChange(k)}>
-      ${art && art(k)}<b>${it.label}</b><span>${it.sub}</span></div>`)}</div>`;
-}
-
-function RoomArt({k}) {
-  const r = ROOMS[k], span = 160, w = 190, kx = (w - 12) / span, kv = kx * 2.4;
-  const floorAt = x => r.floor === 'flat' ? 0 : Math.max(0, x - 10) * .12;
-  const rows = []; for (let x = 10; x <= r.depth; x += 3) rows.push(x);
-  const H = Math.round(8 + 22 * kv);
-  const X = f => 6 + f * kx, Y = f => H - 4 - f * kv;
-  return html`<svg width=${w} height=${H} aria-hidden="true">
-    <rect x=${X(.6)} y=${Y(4 + (r.depth / 12))} width="2" height=${(r.depth / 12) * kv} fill="#151a22"/>
-    ${rows.map(x => html`<circle key=${x} cx=${X(x)} cy=${Y(floorAt(x) + 4.1)} r="1.2" fill="#8b93a1"/>`)}
-    <line x1=${X(0)} y1=${Y(0)} x2=${X(r.depth + 4)} y2=${Y(floorAt(r.depth + 4))} stroke="#c4cad4"/>
-  </svg>`;
+function Pick({items, value, onChange, label}) {
+  const key = k => e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(k); } };
+  return html`<div className="profiles" role="radiogroup" aria-label=${label}>${Object.entries(items).map(([k, it]) => html`<div key=${k} role="radio" aria-checked=${value === k} tabIndex=${0}
+      className=${'profile' + (value === k ? ' on' : '')} onClick=${() => onChange(k)} onKeyDown=${key(k)}>
+      ${it.icon && html`<${Icon} name=${it.icon}/>`}<b>${it.label}</b>${it.sub && html`<span>${it.sub}</span>`}</div>`)}</div>`;
 }
 
 /* ---------- progress while a check runs ---------- */
@@ -146,13 +158,19 @@ const STEPS = [
 ];
 const STEP_SECONDS = 6;
 
-function CheckProgress({uploaded, rescoring}) {
+function CheckProgress({uploaded, rescoring, cached}) {
   const [t0] = useState(() => Date.now());
   const [now, setNow] = useState(Date.now());
   const [upAt, setUpAt] = useState(null);
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(id); }, []);
   useEffect(() => { if (uploaded && !upAt) setUpAt(Date.now()); }, [uploaded]);
   const secs = (now - t0) / 1000;
+  if (cached) return html`<div className="progress" role="status" aria-live="polite">
+    <div className="pg-head"><b>Seen this one before</b><span className="mono">00:00</span></div>
+    <div className="pg-bar"><i style=${{width:'100%'}}></i></div>
+    <ol className="pg-steps">${STEPS.map((s, i) => html`<li key=${i} className="done"><span className="pg-mark">✓</span><div><div className="pg-title">${s.title}</div></div></li>`)}</ol>
+    <p className="note">Same deck as last time, so we pulled up your notes. No rehearsal needed.</p>
+  </div>`;
   if (rescoring) return html`<div className="progress"><div className="pg-bar"><i style=${{width:'70%'}}></i></div><p className="note">Rearranging the chairs for the new room.</p></div>`;
   const since = upAt ? (now - upAt) / 1000 : 0;
   const cur = !upAt ? 0 : Math.min(STEPS.length - 1, 1 + Math.floor(since / STEP_SECONDS));
@@ -168,28 +186,37 @@ function CheckProgress({uploaded, rescoring}) {
   </div>`;
 }
 
-function SetupStep({venue, setVenue, onRun, busy, error, fileName, uploaded, rescoring}) {
+function Notice({note, size = 160}) {
+  return html`<div className="notice" role="status">
+    <${Icon} name="quota-nap" size=${size}/>
+    <div><h2>${note.title}</h2><p className="note">${note.message}</p></div>
+  </div>`;
+}
+
+function SetupStep({venue, setVenue, onRun, busy, error, notice, fileName, uploaded, rescoring, cached}) {
   const set = k => v => setVenue({...venue, [k]:v});
   const inRoom = venue.where !== 'online';
   return html`<div className="intake">
     <h1>Tell us about the talk</h1>
     ${fileName && html`<p className="note">Checking ${fileName}</p>`}
-    <div className="q"><h2>Where will people watch?</h2><${Pick} items=${WHERE} value=${venue.where} onChange=${set('where')}/></div>
-    ${inRoom && html`<div className="q"><h2>How big is the room?</h2><${Pick} items=${ROOMS} value=${venue.room} onChange=${set('room')} art=${k => html`<${RoomArt} k=${k}/>`}/></div>`}
+    <div className="q"><h2>Where will people watch?</h2><${Pick} label="Where will people watch?" items=${WHERE} value=${venue.where} onChange=${set('where')}/></div>
+    ${inRoom && html`<div className="q"><h2>How big is the room?</h2><${Pick} label="How big is the room?" items=${ROOMS} value=${venue.room} onChange=${set('room')}/></div>`}
     <div className="q"><h2>How old is the oldest person likely to be there?</h2>
-      <${Radio.Group} optionType="button" size="large" value=${venue.oldest} onChange=${e => set('oldest')(e.target.value)} options=${Object.entries(AGES).map(([value, label]) => ({value, label}))}/>
+      <${Pick} label="Oldest person in the audience" items=${AGES} value=${venue.oldest} onChange=${set('oldest')}/>
       <span className="note">${venue.oldest === 'u40' ? 'Younger eyes. Standard text sizes work.' : 'Older eyes need bigger text and stronger colors. We will plan for them.'}</span>
     </div>
     ${inRoom && html`<${Collapse} ghost items=${[{key:'a', label:'Fine tune the room (optional)', children:html`<div className="q"><h2>Room light</h2>
       <${Radio.Group} optionType="button" value=${venue.light} onChange=${e => set('light')(e.target.value)} options=${Object.entries(LIGHTS).map(([value, label]) => ({value, label}))}/></div>`}]}/>`}
+    ${notice && !busy && html`<${Notice} note=${notice} size=${96}/>`}
     ${error && html`<${Alert} type="error" showIcon message=${error}/>`}
-    ${busy ? html`<${CheckProgress} uploaded=${uploaded} rescoring=${rescoring}/>`
+    ${busy ? html`<${CheckProgress} uploaded=${uploaded} rescoring=${rescoring} cached=${cached}/>`
       : html`<div className="actions"><${Button} type="primary" size="large" onClick=${onRun}>See results<//></div>`}
   </div>`;
 }
 
 function QuotaNote({quota}) {
-  return html`<div className="hero"><div>
+  return html`<div className="hero quota"><div>
+    <${Icon} name="quota-nap" size=${240} className="icon nap"/>
     <h1>${quota.title}</h1>
     <p className="lead">${quota.message}</p>
   </div></div>`;
@@ -197,11 +224,12 @@ function QuotaNote({quota}) {
 
 function UploadStep({onFile, onSample, samples}) {
   return html`<div className="hero">
-    <div>
+    <div className="upload">
       <h1>Check your slides before you present</h1>
       <p className="lead">See your deck the way the back row, older guests and online viewers will, and find what they would miss.</p>
       <${Upload.Dragger} accept=".pptx,.ppt,.pdf" showUploadList=${false} beforeUpload=${f => { onFile(f); return false; }}>
-        <p style=${{fontSize:15, fontWeight:500, margin:'16px 0 4px'}}>Drop a PowerPoint or PDF</p>
+        <${Icon} name="deck" size=${112} className="icon deckart"/>
+        <p style=${{fontSize:15, fontWeight:500, margin:'4px 0 4px'}}>Drop a PowerPoint or PDF</p>
         <p className="note" style=${{marginBottom:16}}>or click to choose a file, up to 20 MB and 40 slides</p>
       <//>
       <div style=${{marginTop:16, display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
@@ -236,10 +264,12 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
   // Older eyes and color blindness layer on top of whichever view is chosen.
   const lens = [m.filter, older && 'url(#f-old) blur(.5px)', cvd && 'url(#f-deut)'].filter(Boolean).join(' ') || undefined;
   const lensCap = [older && 'Older eyes: less blue, less contrast, softer focus.', cvd && 'Color blind: the most common kind.'].filter(Boolean).join(' ');
-  const inner = Math.max(240, stageW - 48);
+  const narrow = stageW < 560;
+  const inner = Math.max(160, narrow ? stageW : stageW - 48);
+  const faceW = Math.round(Math.min(110, Math.max(36, inner * 0.14)));
   let w = inner;
   if (m.seat && room) w = Math.min(inner, 2304 * room.screen_h / seat * 16 / 9);
-  if (m.call) w = Math.min(inner * 0.66, 640);
+  if (m.call) w = Math.max(120, narrow ? inner - faceW - 28 : Math.min(inner * 0.66, 640));
 
   const map = rep.seat_map, last = map && map[map.length - 1];
   const clear = map ? (map.find(r => r.miss) ? map.find(r => r.miss).row - 1 : map.length) : null;
@@ -276,15 +306,15 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
     <div className="workspace">
       <div className="stagecol">
         <div className="stagebar">
-          <${Segmented} value=${VIEWS.includes(mode) ? mode : VIEWS[1]} onChange=${setMode} options=${VIEWS.map(value => ({value, label:MODES[value].label}))}/>
-          <label className="lens"><${Switch} size="small" checked=${older} onChange=${setOlder}/>Older eyes</label>
-          <label className="lens"><${Switch} size="small" checked=${cvd} onChange=${setCvd}/>Color blind</label>
+          <div className="viewpick"><${Segmented} value=${VIEWS.includes(mode) ? mode : VIEWS[1]} onChange=${setMode} options=${VIEWS.map(value => ({value, label:MODES[value].label}))}/></div>
+          <div className="lenses"><label className="lens"><${Switch} size="small" checked=${older} onChange=${setOlder}/>Older eyes</label>
+          <label className="lens"><${Switch} size="small" checked=${cvd} onChange=${setCvd}/>Color blind</label></div>
           ${room && m.seat && html`<span className="note seatnote">Sitting in row ${rowOf(seat)}. Pick a row above to move.</span>`}
         </div>
         <div className="stagebox" ref=${stageRef}>
           ${m.call ? html`<div className="call">
               <${SlideCanvas} src=${img} width=${w} room=${room} washout=${false} filter=${lens} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>
-              <div className="faces" style=${{height:w * 9 / 16}}>${[0, 1, 2, 3].map(i => html`<div key=${i} className="face"><i></i></div>`)}</div>
+              <div className="faces" style=${{height:w * 9 / 16, width:faceW}}>${[0, 1, 2, 3].map(i => html`<div key=${i} className="face"><i></i></div>`)}</div>
             </div>`
           : html`<${SlideCanvas} src=${img} width=${w} room=${room} washout=${m.washout} filter=${lens} heads=${m.heads}
             captions=${false} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>`}
@@ -329,13 +359,15 @@ function Main() {
   const [samples, setSamples] = useState([]);
   const [quota, setQuota] = useState(null);           // {title, message} once the budget is used up
   const [uploaded, setUploaded] = useState(false);
+  const [cached, setCached] = useState(false);        // true when the same file was checked before
+  const [notice, setNotice] = useState(null);         // {title, message} when this deck is being checked right now
   useEffect(() => {
     if (CLOUD) { setSamples(['problems.pptx']); api('/api/status').then(s => setQuota(s.quota)).catch(() => {}); }
     else api('/api/options').then(o => setSamples(o.samples)).catch(() => {});
   }, []);
 
   const run = async () => {
-    setBusy(true); setError(null); setUploaded(!CLOUD);
+    setBusy(true); setError(null); setNotice(null); setCached(false); setUploaded(!CLOUD);
     const t0 = Date.now();
     try {
       let res;
@@ -349,9 +381,9 @@ function Main() {
           file = new File([blob], pending.sample, {type: blob.type});
         }
         track('check_start', {sample: !!pending.sample, where: venue.where, room: venue.room});
-        res = await cloudCheck(file, venue, () => setUploaded(true));
+        res = await cloudCheck(file, venue, (phase, info) => { setUploaded(true); if (info && info.cached) setCached(true); });
         res.report.deck = pending.sample ? `${pending.sample} (sample)` : res.report.deck;
-        track('check_done', {score: res.report.score, slides: res.report.slides.length, seconds: Math.round((Date.now() - t0) / 1000)});
+        track('check_done', {score: res.report.score, slides: res.report.slides.length, cached: !!res.cached, seconds: Math.round((Date.now() - t0) / 1000)});
       } else if (pending.sample) res = await jsonPost(`/api/samples/${encodeURIComponent(pending.sample)}`, venue);
       else {
         const fd = new FormData(); fd.append('file', pending.file);
@@ -360,7 +392,8 @@ function Main() {
       }
       setDeck(res); setPending(null); setStep(2);
     } catch (e) {
-      if (e.body && e.body.title) { setQuota(e.body); setStep(0); track('quota_hit'); }
+      if (e.status === 409 && e.body && e.body.title) { setNotice(e.body); track('check_busy'); }
+      else if (e.body && e.body.title) { setQuota(e.body); setStep(0); track('quota_hit'); }
       else { setError(e.message); track('check_error', {status: e.status || 0}); }
     }
     finally { setBusy(false); }
@@ -369,13 +402,13 @@ function Main() {
   const canGo = i => i === 0 || (i === 1 && (pending || deck)) || (i === 2 && deck);
   return html`<div className="wrap">
     <div className="top">
-      <div className="brand"><img src="logo.svg" width="28" height="28" alt=""/><span>Slide<b>Ready</b></span></div>
+      <div className="brand"><img src="logo.svg" width="28" height="28" alt=""/><span className="brand-word">Slide<b>Ready</b></span></div>
       <nav className="tabs">${tabs.map((l, i) => html`<button key=${l} className=${step === i ? 'on' : ''} disabled=${!canGo(i)} onClick=${() => canGo(i) && setStep(i)}>${l}</button>`)}</nav>
     </div>
     ${step === 0 && quota && html`<${QuotaNote} quota=${quota}/>`}
     ${step === 0 && !quota && html`<${UploadStep} samples=${samples} onFile=${f => { setPending({file:f}); setStep(1); }} onSample=${s => { setPending({sample:s}); setStep(1); }}/>`}
-    ${step === 1 && html`<${SetupStep} venue=${venue} setVenue=${setVenue} onRun=${run} busy=${busy} error=${error}
-        uploaded=${uploaded} rescoring=${!!(deck && !pending)}
+    ${step === 1 && html`<${SetupStep} venue=${venue} setVenue=${setVenue} onRun=${run} busy=${busy} error=${error} notice=${notice}
+        uploaded=${uploaded} cached=${cached} rescoring=${!!(deck && !pending)}
         fileName=${pending ? (pending.file ? pending.file.name : pending.sample) : deck && deck.report.deck}/>`}
     ${step === 2 && deck && html`<${ResultsStep} deck=${deck} setDeck=${setDeck} venue=${venue} onChangeRoom=${() => setStep(1)}/>`}
   </div>`;
