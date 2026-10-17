@@ -227,7 +227,7 @@ function UploadStep({onFile, onSample, samples}) {
     <div className="upload">
       <h1>Check your slides before you present</h1>
       <p className="lead">See your deck the way the back row, older guests and online viewers will, and find what they would miss.</p>
-      <${Upload.Dragger} accept=".pptx,.ppt,.pdf" showUploadList=${false} beforeUpload=${f => { onFile(f); return false; }}>
+      <${Upload.Dragger} accept=".pptx,.pdf" showUploadList=${false} beforeUpload=${f => { onFile(f); return false; }}>
         <${Icon} name="deck" size=${112} className="icon deckart"/>
         <p style=${{fontSize:15, fontWeight:500, margin:'4px 0 4px'}}>Drop a PowerPoint or PDF</p>
         <p className="note" style=${{marginBottom:16}}>or click to choose a file, up to 20 MB and 40 slides</p>
