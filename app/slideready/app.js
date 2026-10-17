@@ -24,7 +24,6 @@ const IMPACT = {high:'Most of the room', some:'Some people', minor:'Minor'};
 const CATS = {see:'See', read:'Read', color:'Color', follow:'Follow'};
 const band = s => s >= 85 ? {label:'Ready for this room', color:'var(--good)'} : s >= 65 ? {label:'Needs a few fixes', color:'var(--some)'} : {label:'Needs work', color:'var(--high)'};
 const rowFt = r => 10 + (r - 1) * 3;
-const rowOf = ft => Math.max(1, Math.round((ft - 10) / 3) + 1);
 
 // Set by config.js on the published site; empty means the local server on the same origin.
 const API = (window.SLIDEREADY_API || '').replace(/\/$/, '');
@@ -106,6 +105,8 @@ function SlideCanvas({src, width, room, washout, filter, highlight, pins, onPin,
         ctx.putImageData(d, 0, 0);
       }
     };
+    // Without CORS headers the canvas cannot be read; show the plain image rather than nothing.
+    img.onerror = () => { if (!img.crossOrigin) return; img.crossOrigin = null; washout = false; img.src = src; };
     img.src = src;
   }, [src, washout, room && room.white, room && room.ambient]);
   const dz = heads && room ? room.dead_zone : 0;
@@ -135,7 +136,6 @@ function Heads({dz, width, height}) {
 const MODES = {
   laptop:{label:'Your laptop', cap:() => 'Your slide as it looks on your own screen.'},
   room:{label:'In the room', washout:true, heads:true, cap:r => `Projected in this room under its light.${r && r.dead_zone ? ' The amber line marks where heads block the view.' : ''}`},
-  back:{label:'Back row', washout:true, heads:true, seat:true, filter:'blur(.6px)', cap:(r, seat) => `About how big the screen looks from row ${rowOf(seat)}.`},
   stream:{label:'On a call', call:true, cap:() => 'Shared on Zoom or Teams: your slide in a small window next to everyone\'s faces.'},
 };
 
@@ -246,11 +246,10 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
   const rep = deck.report, room = rep.room;
   const [cur, setCur] = useState(0);
   const [mode, setMode] = useState(venue.where === 'online' ? 'stream' : 'room');
-  const [seat, setSeat] = useState(rowFt(room ? room.rows : 1));
+  const [backRow, setBackRow] = useState(false);
   const [hl, setHl] = useState(null);
   const [stageRef, stageW] = useWidth();
   useEffect(() => { setMode(venue.where === 'online' ? 'stream' : 'room'); setHl(null); }, [venue.where]);
-  useEffect(() => { if (room) setSeat(rowFt(room.rows)); }, [room && room.rows]);
 
   const imgUrl = x => x.image_url || `/api/decks/${deck.id}/${x.image}`;
   const s = rep.slides[cur], img = imgUrl(s);
@@ -258,7 +257,7 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
   const pins = s.findings.map((f, i) => { const l = f.lines.length && findLine(f.lines[0]); return l ? {n:i + 1, x:l.left, y:l.top, impact:f.impact, key:i, on:hl === i} : null; }).filter(Boolean);
   const boxes = hl == null ? [] : (s.findings[hl] ? s.findings[hl].lines.map(findLine).filter(Boolean) : []);
 
-  const VIEWS = venue.where === 'online' ? ['laptop', 'stream'] : venue.where === 'both' ? ['laptop', 'room', 'back', 'stream'] : ['laptop', 'room', 'back'];
+  const VIEWS = venue.where === 'online' ? ['laptop', 'stream'] : venue.where === 'both' ? ['laptop', 'room', 'stream'] : ['laptop', 'room'];
   const [older, setOlder] = useState(false);
   const [cvd, setCvd] = useState(false);
   // LED walls: brighter, punchier, dark grays sink to black, bright text glows. On by default for the stage room.
@@ -267,13 +266,16 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
   const m = MODES[VIEWS.includes(mode) ? mode : VIEWS[1]];
   // Older eyes and color blindness layer on top of whichever view is chosen.
   const ledOn = led && venue.where !== 'online';
-  const lens = [ledOn && 'url(#f-led)', m.filter, older && 'url(#f-old) blur(.5px)', cvd && 'url(#f-deut)'].filter(Boolean).join(' ') || undefined;
-  const lensCap = [ledOn && 'LED wall: brighter and punchier, dark grays sink to black, bright text glows.', older && 'Older eyes: less blue, less contrast, softer focus.', cvd && 'Color blind: the most common kind.'].filter(Boolean).join(' ');
+  const back = backRow && !!room && !!m.washout;
+  const seat = room ? rowFt(room.rows) : 10;
+  const lens = [ledOn && 'url(#f-led)', back && 'blur(.6px)', older && 'url(#f-old) blur(.5px)', cvd && 'url(#f-deut)'].filter(Boolean).join(' ') || undefined;
+  const lensCap = [back && `Back row: about how big the screen looks from row ${room.rows}.`, ledOn && 'LED wall: brighter and punchier, dark grays sink to black, bright text glows.', older && 'Older eyes: less blue, less contrast, softer focus.', cvd && 'Color blind: the most common kind.'].filter(Boolean).join(' ');
   const narrow = stageW < 560;
   const inner = Math.max(160, narrow ? stageW : stageW - 48);
   const faceW = Math.round(Math.min(110, Math.max(36, inner * 0.14)));
   let w = inner;
-  if (m.seat && room) w = Math.min(inner, 2304 * room.screen_h / seat * 16 / 9);
+  // Back row: shrink by distance, relative to the room view (about row 3).
+  if (back) w = Math.max(140, Math.min(inner, inner * rowFt(3) / seat));
   if (m.call) w = Math.max(120, narrow ? inner - faceW - 28 : Math.min(inner * 0.66, 640));
 
   const map = rep.seat_map, last = map && map[map.length - 1];
@@ -284,7 +286,6 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
     : clear === 0 ? `Even the front row will miss text on ${map[0].miss} ${map[0].miss === 1 ? 'slide' : 'slides'}.`
     : `Up to row ${clear}, everyone reads every slide. Further back, people miss text on ${last.miss} ${last.miss === 1 ? 'slide' : 'slides'}.`;
   const deckCats = Object.fromEntries(Object.keys(CATS).map(k => [k, Math.round(rep.slides.reduce((a, x) => a + x.categories[k], 0) / n)]));
-  const tone = miss => miss === 0 ? 'good' : miss <= 2 ? 'some' : 'high';
   const b = band(rep.score);
 
   return html`<div className="review">
@@ -304,22 +305,13 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
       </div>
     </header>
 
-    ${map && html`<section className="seatmap" aria-label="Readability from each row">
-      <div className="sm-screen">Screen</div>
-      <div className="sm-rows">${map.map(x => html`<button key=${x.row} className=${'sm-row ' + tone(x.miss) + (rowOf(seat) === x.row ? ' you' : '')}
-          title=${x.miss ? `Row ${x.row}: text too small on ${x.miss} slides` : `Row ${x.row}: every slide readable`}
-          onClick=${() => { setSeat(rowFt(x.row)); setMode('back'); }} aria-label=${'Sit in row ' + x.row}></button>`)}</div>
-      <div className="sm-legend"><span>Row 1, front</span><span>Row ${last.row}, back</span></div>
-      <div className="sm-key"><span><i className="good"></i>Reads everything</span><span><i className="some"></i>Misses 1 or 2 slides</span><span><i className="high"></i>Misses more</span></div>
-    </section>`}
 
     <div className="workspace">
       <div className="stagecol">
         <div className="stagebar">
           <div className="viewpick"><${Segmented} value=${VIEWS.includes(mode) ? mode : VIEWS[1]} onChange=${setMode} options=${VIEWS.map(value => ({value, label:MODES[value].label}))}/></div>
-          <div className="lenses">${venue.where !== 'online' && html`<label className="lens"><${Switch} size="small" checked=${led} onChange=${setLed}/>LED wall</label>`}<label className="lens"><${Switch} size="small" checked=${older} onChange=${setOlder}/>Older eyes</label>
+          <div className="lenses">${room && m.washout && html`<label className="lens"><${Switch} size="small" checked=${backRow} onChange=${setBackRow}/>Back row</label>`}${venue.where !== 'online' && html`<label className="lens"><${Switch} size="small" checked=${led} onChange=${setLed}/>LED wall</label>`}<label className="lens"><${Switch} size="small" checked=${older} onChange=${setOlder}/>Older eyes</label>
           <label className="lens"><${Switch} size="small" checked=${cvd} onChange=${setCvd}/>Color blind</label></div>
-          ${room && m.seat && html`<span className="note seatnote">Sitting in row ${rowOf(seat)}. Pick a row above to move.</span>`}
         </div>
         <div className="stagebox" ref=${stageRef}>
           ${m.call ? html`<div className="call">
@@ -329,11 +321,11 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
           : html`<${SlideCanvas} src=${img} width=${w} room=${room} washout=${m.washout} filter=${lens} heads=${m.heads} led=${ledOn && w > 360}
             captions=${false} highlight=${boxes} pins=${pins} onPin=${p => setHl(p.key)}/>`}
         </div>
-        <div className="cap">${m.cap(room, seat)}${lensCap ? ' ' + lensCap : ''}</div>
+        <div className="cap">${m.cap(room)}${lensCap ? ' ' + lensCap : ''}</div>
         <div className="film" role="list">
           ${rep.slides.map((x, i) => html`<div key=${x.image} role="listitem" tabIndex=${0} className=${'thumb' + (i === cur ? ' on' : '')}
               onClick=${() => { setCur(i); setHl(null); }} onKeyDown=${e => e.key === 'Enter' && (setCur(i), setHl(null))}>
-            <img src=${imgUrl(x)} width="132" height="74" alt=${'Slide ' + (i + 1)} loading="lazy"/>
+            <img src=${imgUrl(x)} crossOrigin="anonymous" width="132" height="74" alt=${'Slide ' + (i + 1)} loading="lazy"/>
             <div className="meta"><span>${i + 1}</span><b style=${{color:band(x.score).color}}>${x.score}</b></div>
           </div>`)}
         </div>
@@ -361,7 +353,7 @@ function ResultsStep({deck, setDeck, venue, onChangeRoom}) {
 
 function Main() {
   const [step, setStep] = useState(0);
-  const [venue, setVenue] = useState({where:'room', room:'medium', oldest:'60s', light:'dimmed'});
+  const [venue, setVenue] = useState({where:'room', room:'medium', oldest:'40s', light:'dimmed'});
   const [pending, setPending] = useState(null);      // {file} or {sample}
   const [deck, setDeck] = useState(null);            // {id, report}
   const [busy, setBusy] = useState(false);
@@ -424,5 +416,5 @@ function Main() {
   </div>`;
 }
 
-const theme = {token:{colorPrimary:'#3563c9', colorText:'#1d2740', colorTextSecondary:'#56617a', colorBorder:'#dce3ef', fontFamily:'"Nunito", ui-rounded, system-ui, sans-serif', fontSize:15, borderRadius:14, colorBgLayout:'#eef2f9'}};
+const theme = {token:{colorPrimary:'#3563c9', colorText:'#1d2740', colorTextSecondary:'#56617a', colorBorder:'#dce3ef', fontFamily:'"Nunito", ui-rounded, system-ui, sans-serif', fontSize:15, borderRadius:10, colorBgLayout:'#eef2f9'}};
 ReactDOM.createRoot(document.getElementById('root')).render(html`<${ConfigProvider} theme=${theme}><${AntApp}><${Main}/><//><//>`);
